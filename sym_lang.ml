@@ -6,7 +6,6 @@ type op =
   | OPMUL
   | OPDIV
   | OPMOD
-  | OPNEG
   | OPNOT
   | OPOR
   | OPAND
