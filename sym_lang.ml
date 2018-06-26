@@ -1,5 +1,22 @@
 open Lang
 
+type op =
+  | OPADD
+  | OPSUB
+  | OPMUL
+  | OPDIV
+  | OPMOD
+  | OPNEG
+  | OPNOT
+  | OPOR
+  | OPAND
+  | OPLESS
+  | OPGREATER
+  | OPLESSEQ
+  | OPGREATEREQ
+  | OPEQAUL
+  | OPNOTEQ
+
 type sym_value =
   (* base *)
   | SUnit
@@ -14,16 +31,14 @@ type sym_value =
   | VBlock of id * (id * sym_value) list
   (* symbol *)
   | Symbol of typ * int
-  | SAop of (int -> int -> int) * sym_value * sym_value
-  | SBop of (bool -> bool -> bool) * sym_value * sym_value
+  | SVop of op * sym_value * sym_value
 and senv = (id, sym_value) BatMap.t
 and componets = exp BatSet.t
 
 type path_cond =
   | True | False
-  | PVAop of (int -> int -> bool) * sym_value * sym_value
-  | PVBop of (bool -> bool -> bool) * sym_value * sym_value
-  | PPop of (bool -> bool -> bool) * path_cond * path_cond
+  | PVop of op * sym_value * sym_value
+  | PPop of op * path_cond * path_cond
 
   let empty_env = BatMap.empty
   let lookup_senv = BatMap.find
