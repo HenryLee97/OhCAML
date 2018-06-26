@@ -1,171 +1,143 @@
 open Util
 
-(* expression *)
-type program = exp
-and exp = 
-  | CONST of int
+exception EvalError of string
+exception TimeoutError
+exception StackOverflow of string
+exception EqualError
+
+type id = string 
+
+type typ = 
+  | TUnit
+  | TInt
+  | TBool
+  | TString
+  | TBase of id  (* user defined*)
+  | TList of typ
+  | TTuple of typ list
+  | TCtor of typ * typ list (*  tbase x , tl *)
+  | TArr of typ * typ (*fun t1->t2->t3...*)
+  | TVar of id (* type variable *)
+  | TExn
+
+type ctor = id * typ list
+
+type pat = 
+  | PUnit
+  | PInt of int
+  | PBool of bool
+  | PVar of id
+  | PList of pat list
+  | PTuple of pat list
+  | PCtor of id * pat list
+  | PCons of pat list
+  (*| PCons of pat * pat*)
+  | PUnder 
+  | Pats of pat list
+
+type let_bind =
+  | BindUnder (* let _ = ... in x *)
+  | BindOne of id (* let x = ... in x *)
+  | BindTuple of let_bind list (* let x,y = (..., ...) in x,y *)
+
+type arg = 
+  | ArgUnder of typ
+  | ArgOne of id * typ
+  | ArgTuple of arg list
+
+type decl =
+  | DExcept of ctor                                 (* exception x of t *)
+  | DEqn of id * typ 
+  | DData of id * ctor list                         (* 'type' D = ctors *)
+  | DLet  of binding       (* let x [rec] (x1:t1) .. (xn:tn) : t = e *)
+  (* and block *)
+  | DBlock of bool * binding list (* let x1 = e1 and x2 = e2 ... xn = en | let rec f1 x1 = e1 and f2 x2 = e2 and ... fn xn = en *)
+  | TBlock of decl list
+and exp =
+  (* Const *)
+  | EUnit
+  | Const of int
   | TRUE
-  | FALSE
-  | VAR of var
-  | ADD of exp * exp
-  | SUB of exp * exp
-  | MUL of exp * exp
-  | DIV of exp * exp
-  | ISZERO of exp
-  | LT of exp * exp
-  | LE of exp * exp
-  | GT of exp * exp
-  | GE of exp * exp
-  | READ
+  | FALSE  
+  | EList of exp list
+  | String of id
+  | EVar of id         
+  | ECtor of id * exp list
+  | ETuple of exp list                             
+  (* aop *)
+  | ADD of exp * exp                                (*a1 + a2*)
+  | SUB of exp * exp                                (*a1 - a2*)
+  | MUL of exp * exp                                (*a1 * a2*)
+  | DIV of exp * exp                                (*a1 / a2*)
+  | MOD of exp * exp                                (*a1 % a2*)
+  | MINUS of exp
+  (* bop *)
+  | NOT of exp                                      (*not b1*)
+  | OR of exp * exp                                 (*b1 || b2*)
+  | AND of exp * exp                                (*b1 && b2*)
+  | LESS of exp * exp                               (*a1 < a2*)
+  | LARGER of exp * exp                             (*a1 > a2*)
+  | EQUAL of exp * exp                              (*a1 == a2*)
+  | NOTEQ of exp * exp                              (*a1 <> a2 or a1 != a2*)
+  | LESSEQ of exp * exp                             (*a1 <= a2*)
+  | LARGEREQ of exp * exp                           (*a1 >= a2*)
+  (* lop *)
+  | AT of exp * exp
+  | DOUBLECOLON of exp * exp
+  | STRCON of exp * exp
+  (* else *)
+  | EApp of exp * exp                               (* e1 e2 *)
+  | EFun of arg * exp                               (* fun (x:t1) -> e *)
+  | ELet of let_bind * bool * arg list * typ * exp * exp  (* let [rec] (x1:t1) .. (xn:tn) : t = e1 in e2 *)
+  | EBlock of bool * binding list * exp (* let x1 = e1 and x2 = e2 and ... xn = en in e' | let rec f1 x1 = e1 and f2 x2 = e2 ... fn xn = en in e' *)
+  | EMatch of exp * branch list                     (* match e with bs *)
   | IF of exp * exp * exp
-  | LET of var * exp * exp
-  | LETREC of var * var * exp * exp
-  | PROC of var * exp
-  | CALL of exp * exp
-and var = string
+  (*List operation*)
+  | Raise of exp
+and branch = pat * exp   
+and binding = (let_bind * bool * arg list * typ * exp) (* f [rec] x1,x2 :t = e => must divide LET & LETREC later *)
 
-(* type *)
-type typ = TyInt | TyBool | TyFun of typ * typ | TyVar of tyvar
-and tyvar = string
+type prog = decl list
 
-let rec typ2str t =
-  match t with
-  | TyInt -> "int"
-  | TyBool -> "bool"
-  | TyFun (t1, t2) -> typ2str t1 ^ " -> " ^ typ2str t2
-  | TyVar x -> x
+(* values *)
+type value =
+  | VUnit
+  | VInt of int
+  | VString of string
+  | VBool of bool
+  | VList of value list (* ?? *)
+  | VTuple of value list
+  | VCtor of id * value list
+  | VFun  of arg * exp * env
+  | VFunRec of id * arg * exp * env
+  | VBlock of id * (id * value) list
+and env = (id, value) BatMap.t
+and components = exp BatSet.t
 
-let rec replace_typ src from des =
-  match from with
-  | TyVar x ->
-    begin
-      match src with
-      | TyInt | TyBool -> src
-      | TyFun (t1, t2) -> TyFun (replace_typ t1 from des, replace_typ t2 from des)
-      | TyVar y -> if x = y then des else src
-    end
-  | _ -> raise (Failure "Not Type Variable")
+exception EExcept of value
 
-(* value *)
-type sym_value =
-  (* value *)
-  | Int of int
-  | Bool of bool
-  | Fun of var * exp * sym_env
-  | FunRec of var * var * exp * sym_env * int
-  (* symbol *)
-  | SInt of id
-  | SBool of id
-  | SVar of id (* ? *)
-  | SFun of id * typ * typ
-  (* arithmetic expression *)
-  | SExp of arithmetic_op * sym_value * sym_value
-  | SMinus of sym_value
-  | SFunApp of id * sym_value * typ
-  (* error *)
-  | Error of error_code
-  (* simplify *)
-  | Sum of sym_value list
-  | Product of sym_value list
-  (* gen counter example *)
-  | Return
-and arithmetic_op = SADD | SSUB | SMUL | SDIV
-and id = int
-and sym_env = (var * sym_value) list
-and error_code =
-  | DIVBYZERO
-  | RECURSION of var
+type input = exp list
+type example = (input * value)
+type examples = (input * value) list
 
-let recursive_cnt = 5
+let empty_env = BatMap.empty
+let lookup_env = BatMap.find
+let update_env = BatMap.add
 
-let sym_cnt = ref 0
-let init_sym_cnt () = sym_cnt := 0
-let new_sym () = sym_cnt := !sym_cnt + 1; !sym_cnt
+(* generate a fresh type variable *)
+let tvar_num = ref 0
+let fresh_tvar () = (tvar_num := !tvar_num + 1; (TVar ("#" ^ string_of_int !tvar_num)))
 
-let empty_env = []
-let rec find env x =
-  match env with
-  | [] -> raise (Failure "Env is Empty")
-  | (y, v)::tl -> if y = x then v else find tl x
-let append env (x, v) = (x, v)::env
+(* function application *)
+let rec appify : exp -> exp list -> exp
+= fun exp exp_list ->
+	match exp_list with
+	[] -> exp
+	|hd::tl -> appify (EApp(exp,hd)) tl
 
-let is_int v =
-  match v with
-  | Int _ | SInt _ | SExp _ | SMinus _  | Sum _ | Product _ -> true
-  | _ -> false
-
-let is_error v =
-  match v with
-  | Error _ -> true
-  | _ -> false
-
-let rec value2str : sym_value -> string
-= fun v ->
-  match v with
-  | Int n -> string_of_int n
-  | Bool b -> string_of_bool b
-  | Fun _ -> "fun" (* TODO *)
-  | FunRec _ -> "fun" (* TODO *)
-  | SInt id -> "alpha" ^ string_of_int id
-  | SBool id -> "beta" ^ string_of_int id
-  | SVar id -> "var" ^ string_of_int id
-  | SFun (id, t1, t2) -> "sym_fun" ^ string_of_int id ^ " (" ^ typ2str t1 ^ " -> " ^ typ2str t2 ^ ")"
-  | SExp (aop, v1, v2) ->
-    begin
-      match aop with
-      | SADD -> "(" ^ value2str v1 ^ " + " ^ value2str v2 ^ ")"
-      | SSUB -> "(" ^ value2str v1 ^ " - " ^ value2str v2 ^ ")"
-      | SMUL -> "(" ^ value2str v1 ^ " * " ^ value2str v2 ^ ")"
-      | SDIV -> "(" ^ value2str v1 ^ " / " ^ value2str v2 ^ ")"
-    end
-  | SMinus v -> "(-" ^ value2str v ^ ")"
-  | SFunApp (id, v, t) -> "Sym_fun" ^ string_of_int id ^ "(" ^ value2str v ^ ")"
-  | Error t -> "Error: " ^ (
-    match t with
-    | DIVBYZERO -> "/ by zero"
-    | RECURSION f -> "fun " ^ f ^ " called more than " ^ string_of_int recursive_cnt ^ " times recursively"
-  )
-  | Sum l -> "(" ^ fold (fun v1 s2 -> value2str v1 ^ (if s2 = ")" then "" else " + ") ^ s2) l ")"
-  | Product l -> "(" ^ fold (fun v1 s2 -> value2str v1 ^ (if s2 = ")" then "" else " * ") ^ s2) l ")"
-  | Return -> "expected output"
-
-type path_exp =
-  (* boolean exp *)
-  | TRUE
-  | FALSE
-  (* boolean op *)
-  | AND of path_exp * path_exp
-  | OR of path_exp * path_exp
-  | NOT of path_exp
-  (* symbolic equation *)
-  | EQUAL of sym_value * sym_value
-  | NOTEQ of sym_value * sym_value
-  | LESSTHAN of sym_value * sym_value
-  | LESSEQ of sym_value * sym_value
-  | GREATTHAN of sym_value * sym_value
-  | GREATEQ of sym_value * sym_value
-  (* simplify *)
-  | ANDL of path_exp list
-  | ORL of path_exp list
-  (* solve *)
-  | PATHEQ of path_exp * path_exp
-and path_cond = path_exp
-
-let default_path_cond = TRUE
-
-let rec cond2str : path_exp -> string
-= fun pi ->
-  match pi with
-  | TRUE -> "true"
-  | FALSE -> "false"
-  | AND (e1, e2) -> "(" ^ cond2str e1 ^ " and " ^ cond2str e2 ^ ")"
-  | OR (e1, e2) -> "(" ^ cond2str e1 ^ " or " ^ cond2str e2 ^ ")"
-  | NOT e -> "!" ^ cond2str e
-  | EQUAL (v1, v2) -> "(" ^ value2str v1 ^ " = " ^ value2str v2 ^ ")"
-  | NOTEQ (v1, v2) -> "(" ^ value2str v1 ^ " != " ^ value2str v2 ^ ")"
-  | LESSTHAN (v1, v2) -> "(" ^ value2str v1 ^ " < " ^ value2str v2 ^ ")"
-  | LESSEQ (v1, v2) -> "(" ^ value2str v1 ^ " <= " ^ value2str v2 ^ ")"
-  | GREATTHAN (v1, v2) -> "(" ^ value2str v1 ^ " > " ^ value2str v2 ^ ")"
-  | GREATEQ (v1, v2) -> "(" ^ value2str v1 ^ " >= " ^ value2str v2 ^ ")"
-  | ANDL l -> "(" ^ fold (fun v1 s2 -> cond2str v1 ^ (if s2 = ")" then "" else " and ") ^ s2) l ")"
-  | ORL l -> "(" ^ fold (fun v1 s2 -> cond2str v1 ^ (if s2 = ")" then "" else " or ") ^ s2) l ")"
+let rec let_to_exp : let_bind -> exp
+= fun x ->
+  match x with 
+  | BindOne x -> EVar x
+  | BindTuple xs -> ETuple (List.map let_to_exp xs)
+  | _ -> raise (Failure "Wild-card _ is not valid")
