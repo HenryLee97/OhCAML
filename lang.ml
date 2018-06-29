@@ -26,3 +26,13 @@ type pat =
   | PCons of pat lsit
   | PUnder
   | Pats of pat list
+
+type let_bind =
+  | BindUnder
+  | BlindOne of id
+  | BindTuple of let_bind list
+
+type arg =
+  | ArgUnder of typ
+  | ArgOne of id * typ
+  | ArgTuple of arg list
