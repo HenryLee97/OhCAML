@@ -1,3 +1,0 @@
-true: package(z3)
-true: package(str)
-true: package(batteries)
