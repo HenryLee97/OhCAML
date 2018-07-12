@@ -5,7 +5,7 @@ OhCAML is Checking Assistant for ML
 ## Install Package
 Install package with opam
 ```
-$ opam install z3
+$ opam install batteries
 ```
 
 ## Build
