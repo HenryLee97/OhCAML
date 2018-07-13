@@ -3,6 +3,12 @@ open Lang
 
 let usage_msg = "'./main.native -h' for help"
 
+let parse_file : string -> prog
+= fun f ->
+  Preproc.preprocess_file f
+  |> Lexing.from_string
+  |> Parser.prog Lexer.token
+
 let read_prog : string -> prog option
 = fun filename ->
   try filename ->
@@ -20,7 +26,7 @@ let execute : prog -> (path * value) list
 
 let run_prog : prog -> unit
 = fun prog ->
-  ()
+  Print.print_output (execute prog)
 
 let main () =
   let _ = print_endline("file: " ^ Sys.argv.(0)) in
