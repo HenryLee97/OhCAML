@@ -1,1 +1,0 @@
-let test = proc (x) (x < 1) in (test read)
