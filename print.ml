@@ -1,10 +1,14 @@
 open Lang
 
 let rec string_of_path : path -> string
-= fun p -> ""
+= fun p ->
+  match p with
+  | _ -> ""
 
 let rec string_of_value : value -> string
-= fun v -> ""
+= fun v ->
+  match v with
+  | _ -> ""
 
 let rec print_output : (path * value) list -> unit
 = fun xs ->
