@@ -114,6 +114,19 @@ type value =
 and env = (id, value) BatMap.t
 and components = exp BatSet.t
 
+type path =
+  | PTRUE
+  | PFALSE
+  | PValue of value
+  | PAnd of path * path
+  | POr of path * path
+  | PEq of path * path
+  | PNEq of path * path
+  | PLess of path * path
+  | PGreater of path * path
+  | PLesseq of path * path
+  | PGreatereq of path * path
+
 exception EExcept of value
 
 let empty_env = BatMap.empty
