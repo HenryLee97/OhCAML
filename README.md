@@ -1,6 +1,6 @@
 # OhCAML
 
-OhCAML is Checking Assistant for ML
+OhCAML is Checking Assistant for small ML
 
 ## Install Package
 Install package with opam
